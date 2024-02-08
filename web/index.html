@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图的可视化</title>
+    <style type="text/css">
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f2f2f2;
+        }
+
+        .container {
+            max-width: 90%;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .section {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            flex-basis: 100%;
+        }
+
+        .section-note {
+            font-style: normal;
+            color: #888;
+            flex-basis: 100%;
+            margin-bottom: 10px;
+        }
+
+        .switch {
+            display: flex;
+            align-items: center;
+            margin-right: 10px;
+        }
+
+        .switch-label {
+            position: relative;
+            cursor: pointer;
+            margin-right: 5px;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+
+        .switch-label input[type="checkbox"] {
+            display: none;
+        }
+
+        .switch-slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #ccc;
+            border-radius: 10px;
+            transition: background-color 0.2s;
+        }
+
+        .switch-slider:before {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background-color: #fff;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .switch-label input[type="checkbox"]:checked+.switch-slider {
+            background-color: #4CAF50;
+        }
+
+        .switch-label input[type="checkbox"]:checked+.switch-slider:before {
+            transform: translateX(20px);
+        }
+
+        .switch-text {
+            font-size: 14px;
+            color: #555;
+        }
+
+        .input-digit {
+            max-width: 100px;
+            width: 100%;
+            padding: 5px;
+            font-size: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .input-field,
+        .textarea-field {
+            flex-basis: 100%;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+            overflow-wrap: break-word;
+        }
+
+        .canvassection {
+            margin-bottom: 20px;
+            overflow-x: auto;
+            overflow-y: auto;
+        }
+
+        .button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background-color: #45a049;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        canvas {
+            border: 1px solid black;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="section">
+            <div class="section-title">顶点列表：</div>
+            <div class="section-note">留空或输入auto则根据邻接矩阵自动生成顶点编号</div>
+            <input type="text" class="input-field" id="vertices" placeholder="顶点列表" />
+        </div>
+        <div class="section">
+            <div class="section-title">邻接矩阵：</div>
+            <textarea class="textarea-field" id="adjMatrix" placeholder="邻接矩阵" rows="5"></textarea>
+        </div>
+        <div class="section">
+            <div class="switch" id="drawArrowsSwitch">
+                <label class="switch-label" for="drawArrows">
+                    <input type="checkbox" id="drawArrows" checked />
+                    <span class="switch-slider"></span>
+                </label>
+                <div class="switch-text">绘制箭头</div>
+            </div>
+            <div class="switch" id="drawLabelsSwitch">
+                <label class="switch-label" for="drawLabels">
+                    <input type="checkbox" id="drawLabels" checked />
+                    <span class="switch-slider"></span>
+                </label>
+                <div class="switch-text">绘制权重标签</div>
+            </div>
+            <div class="switch" id="hideWeightLabelSwitch">
+                <label class="switch-label" for="hideWeightLabel">
+                    <input type="checkbox" id="hideWeightLabel" />
+                    <span class="switch-slider"></span>
+                </label>
+                <div class="switch-text">隐藏权重为</div>
+                <input type="number" id="hideWeightInput" class="input-digit" value="1" />
+                <div class="switch-text">的标签</div>
+            </div>
+        </div>
+        <div class="section">
+            <button class="button" onclick="DoGraph()">绘制</button>
+        </div>
+        <div class="section">
+            <button class="button" onclick="document.getElementById('importFile').click();">从文件导入</button>
+            <input type="file" id="importFile" class="file-input" onchange="fileImportGraph()" />
+            <button class="button" onclick="handleImport();">从文本导入</button>
+            <button class="button" onclick="fileExportGraph()">导出到文件</button>
+            <button class="button" onclick="clipboardExportGraph()">导出到剪切板</button>
+        </div>
+        <div class="section">
+            <div class="section-title">画板宽度：</div>
+            <input type="number" id="canvasWidth" class="input-field" placeholder="画板宽度" />
+            <div class="section-title">画板高度：</div>
+            <input type="number" id="canvasHeight" class="input-field" placeholder="画板高度" />
+            <button class="button" onclick="applyCanvasSize()">应用</button>
+        </div>
+        <div class="canvassection">
+            <canvas id="gra" width="500" height="500"></canvas>
+        </div>
+    </div>
+    <script>
+        //---------------绘图类---------------
+
+        /**
+         * Created by chencen on 2017/9/4.
+         * Update by XY0797 on 2024/2/8.
+         */
+        var Gra = function () {
+            this.elem = arguments[0];
+            this.options = arguments[1];
+            this.width = this.elem.width;
+            this.height = this.elem.height;
+            this.context = this.elem.getContext('2d');
+            this.deName = false;
+            this.isSymmetric = true;
+            this.pointSize = 15;
+            this.pointData = [];
+            this.canvasEvent = null;
+            this.canvasHandler = null;
+            this.drawArrows = true;
+            this.drawLabels = true;
+            this.hideSomeLabel = false;
+            this.hideLabelValue = 1;
+            this.init();
+        }
+
+        //初始化
+        Gra.prototype.init = function () {
+            var name = this.options.name;
+            this.num = this.options.data.length;
+            this.drawArrows = this.options.drawArrows;
+            this.drawLabels = this.options.drawLabels;
+            this.hideSomeLabel = this.options.hideSomeLabel;
+            this.hideLabelValue = this.options.hideLabelValue;
+            if (name && name.length != 0) {
+                this.deName = true;
+            }
+            this.createPoint();
+            this.drawPoint();
+            this.drawEdge();
+            this.initaction();
+        }
+
+        //创建顶点
+        Gra.prototype.createPoint = function () {
+            var num = this.num;
+            var dia = (this.width < this.height) ? this.width : this.height;
+            var centerx = this.width / 2;
+            var centery = this.height / 2;
+            var rad = 2 * Math.PI / num;
+            for (var i = 0; i < num; i++) {
+                var y = (dia / 2 - 30) * Math.sin(rad * i) + centery;
+                var x = (dia / 2 - 30) * Math.cos(rad * i) + centerx;
+                this.pointData.push({ x: x, y: y })
+            }
+        }
+
+        //绘顶点
+        Gra.prototype.drawPoint = function () {
+            var ctx = this.context;
+            var num = this.num;
+            for (var i = 0; i < num; i++) {
+                var x = this.pointData[i].x;
+                var y = this.pointData[i].y;
+                ctx.beginPath();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.arc(x, y, this.pointSize, 0, 2 * Math.PI, false);
+                ctx.stroke();
+            }
+        }
+
+        //绘边
+        Gra.prototype.drawEdge = function () {
+            //判断是无向图和有向图
+            var gra = this;
+            var ctx = this.context;
+            var data = this.options.data;
+            var mydata = this.pointData;
+            for (var i = 0; i < data.length; i++) {
+                for (j = 0; j < data.length; j++) {
+                    if (data[i][j] != data[j][i]) {
+                        this.isSymmetric = false;
+                    }
+                }
+            }
+            ctx.save();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.font = '12px 微软雅黑';
+            ctx.textAlign = 'left';
+            if (this.isSymmetric) {
+                ctx.fillText('无向图', 14, 14);
+                for (var i = 0; i < data.length; i++) {
+                    for (j = 0; j < i; j++) {
+                        if (data[i][j] != 0 && data[i][j] != Number.POSITIVE_INFINITY) {
+                            ctx.moveTo(mydata[i].x, mydata[i].y);
+                            ctx.lineTo(mydata[j].x, mydata[j].y);
+                            ctx.stroke();
+                            //双向箭头
+                            if (this.drawArrows) {
+                                this.drawDoubleArrow(mydata[i].x, mydata[i].y, mydata[j].x, mydata[j].y, data[i][j]);
+                            }
+                        }
+                    }
+                }
+            }
+            else {
+                ctx.fillText('有向图', 14, 14);
+                for (var i = 0; i < data.length; i++) {
+                    for (j = 0; j < data.length; j++) {
+                        if (data[i][j] != 0 && data[i][j] != Number.POSITIVE_INFINITY && i != j) {
+                            if (data[i][j] == data[j][i]) {
+                                //无向边
+                                if (j < i) { continue; }
+                                ctx.moveTo(mydata[i].x, mydata[i].y);
+                                ctx.lineTo(mydata[j].x, mydata[j].y);
+                                ctx.stroke();
+                                //双向箭头
+                                if (this.drawArrows) {
+                                    this.drawDoubleArrow(mydata[i].x, mydata[i].y, mydata[j].x, mydata[j].y, data[i][j]);
+                                }
+                                continue;
+                            }
+                            //比例
+                            var rat = Math.atan((mydata[j].y - mydata[i].y) / (mydata[j].x - mydata[i].x));
+                            var dex = Math.cos(rat + (Math.PI / 6)) * this.pointSize;
+                            var dey = Math.sin(rat + (Math.PI / 6)) * this.pointSize;
+                            var dex1 = Math.cos(rat - (Math.PI / 6)) * this.pointSize;
+                            var dey1 = Math.sin(rat - (Math.PI / 6)) * this.pointSize;
+                            if (j < i) {
+                                ctx.strokeStyle = '	#2F4F4F';
+                                ctx.moveTo(mydata[j].x - dex, mydata[j].y - dey);
+                                ctx.lineTo(mydata[i].x + dex1, mydata[i].y + dey1);
+                                ctx.stroke();
+                                //箭头
+                                if (this.drawArrows) {
+                                    this.drawArrow(mydata[i].x + dex1, mydata[i].y + dey1, mydata[j].x - dex, mydata[j].y - dey, data[i][j]);
+                                }
+                            }
+                            else {
+                                ctx.strokeStyle = '#800000 ';
+                                ctx.moveTo(mydata[i].x - dex1, mydata[i].y - dey1);
+                                ctx.lineTo(mydata[j].x + dex, mydata[j].y + dey);
+                                ctx.stroke();
+                                //箭头
+                                if (this.drawArrows) {
+                                    this.drawArrow(mydata[i].x - dex1, mydata[i].y - dey1, mydata[j].x + dex, mydata[j].y + dey, data[i][j]);
+                                }
+                            }
+                        }
+                    }
+                }
+
+            }
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            mydata.forEach(function (item, index) {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(item.x, item.y, gra.pointSize - 1, 0, 2 * Math.PI, true);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                if (gra.deName) {
+                    ctx.fillText(gra.options.name[index], item.x, item.y);
+                }
+                else {
+                    ctx.fillText(index.toString(), item.x, item.y);
+                }
+            });
+
+            ctx.restore();
+        }
+
+        //绘制箭头及标签
+        Gra.prototype.drawArrow = function (x, y, x1, y1, weight) {
+            var ctx = this.context;
+            ctx.save();
+            ctx.translate(x / 2 + x1 / 2, y / 2 + y1 / 2);
+            var angle = Math.atan2(y1 - y, x1 - x); //计算箭头的旋转角度
+            ctx.rotate(angle);
+            ctx.fillStyle = '#000';
+
+            //绘制箭头
+            ctx.beginPath();
+            ctx.moveTo(-12, 0);
+            ctx.lineTo(-2, 5);
+            ctx.lineTo(-2, -5);
+            ctx.closePath();
+            ctx.fill();
+
+            //有权重并且开启了画权重并且没有隐藏当前权重的标签
+            if (weight && this.drawLabels && (!this.hideSomeLabel || this.hideLabelValue != weight)) {
+                //逆向旋转标签，使其保持水平方向
+                ctx.rotate(-angle);
+
+                //根据箭头的旋转角度调整标签的位置
+                var labelOffset = 25; //标签的偏移量
+                var labelX = Math.cos(angle) * labelOffset;
+                var labelY = Math.sin(angle) * labelOffset;
+
+                //绘制标签背景
+                var labelBgColor = '#fff'; //标签背景颜色
+                var labelBorderColor = '#888'; //标签边框颜色
+                var labelWidth = ctx.measureText(weight).width + 10; //标签宽度
+                var labelHeight = 20; //标签高度
+
+                ctx.fillStyle = labelBgColor;
+                ctx.fillRect(labelX - labelWidth / 2, labelY - labelHeight / 2, labelWidth, labelHeight);
+
+                ctx.strokeStyle = labelBorderColor;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(labelX - labelWidth / 2, labelY - labelHeight / 2, labelWidth, labelHeight);
+
+                //绘制标签
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#000';
+                ctx.fillText(weight, labelX, labelY);
+            }
+
+            ctx.restore();
+        }
+
+        // 绘制双向箭头及标签
+        Gra.prototype.drawDoubleArrow = function (x1, y1, x2, y2, weight) {
+            // 绘制第一个箭头
+            this.drawArrow(x1, y1, x2, y2, null);
+            // 绘制第二个箭头
+            this.drawArrow(x2, y2, x1, y1, weight);
+        }
+
+        //拖动事件
+        Gra.prototype.initaction = function () {
+            var gra = this;
+            var canvas = gra.elem;
+            var ctx = gra.context;
+            var mydata = gra.pointData;
+
+            //鼠标按下事件或触摸开始事件
+            var startEvent = 'mousedown';
+            var moveEvent = 'mousemove';
+            var endEvent = 'mouseup';
+
+            if ('ontouchstart' in window) {
+                startEvent = 'touchstart';
+                moveEvent = 'touchmove';
+                endEvent = 'touchend';
+            }
+
+            //如果有旧事件就干掉
+            if (this.canvasHandler) {
+                canvas.removeEventListener(this.canvasEvent, this.canvasHandler);
+            }
+
+            //设置事件的函数
+            this.canvasEvent = startEvent;
+            this.canvasHandler = function (ev) {
+                var moveIndex = -1;
+                var canvasRect = canvas.getBoundingClientRect();
+                var clientX, clientY;
+
+                if (startEvent === 'touchstart') {
+                    clientX = ev.touches[0].clientX;
+                    clientY = ev.touches[0].clientY;
+                } else {
+                    clientX = ev.clientX;
+                    clientY = ev.clientY;
+                }
+
+                var mouseX = clientX - canvasRect.left;
+                var mouseY = clientY - canvasRect.top;
+
+                for (var i = 0; i < mydata.length; i++) {
+                    if (mouseX < (mydata[i].x + gra.pointSize) && mouseX > (mydata[i].x - gra.pointSize) && mouseY < (mydata[i].y + gra.pointSize) && mouseY > (mydata[i].y - gra.pointSize)) {
+                        moveIndex = i;
+                        break;
+                    }
+                }
+                if (moveIndex == -1) {
+                    return;
+                }
+
+                ev.preventDefault(); //阻止默认的触摸事件行为
+
+                document.addEventListener(moveEvent, moveHandler);
+                document.addEventListener(endEvent, endHandler);
+
+                function moveHandler(event) {
+                    ev.preventDefault(); //阻止默认的触摸事件行为
+
+                    var clientX, clientY;
+
+                    if (moveEvent === 'touchmove') {
+                        clientX = event.touches[0].clientX;
+                        clientY = event.touches[0].clientY;
+                    } else {
+                        clientX = event.clientX;
+                        clientY = event.clientY;
+                    }
+
+                    var moveX = clientX - canvasRect.left;
+                    var moveY = clientY - canvasRect.top;
+
+                    if (moveIndex !== -1) {
+                        ctx.clearRect(0, 0, gra.width, gra.height);
+                        mydata[moveIndex].x = moveX;
+                        mydata[moveIndex].y = moveY;
+
+                        for (var i = 0; i < mydata.length; i++) {
+                            ctx.beginPath();
+                            ctx.strokeStyle = '#000';
+                            ctx.lineWidth = 1;
+                            ctx.arc(mydata[i].x, mydata[i].y, gra.pointSize, 0, 2 * Math.PI, false);
+                            ctx.stroke();
+                        }
+
+                        gra.drawEdge();
+                    }
+                }
+
+                function endHandler() {
+                    document.removeEventListener(moveEvent, moveHandler);
+                    document.removeEventListener(endEvent, endHandler);
+                }
+            }
+            canvas.addEventListener(this.canvasEvent, this.canvasHandler);
+        }
+        //---------------绘图类结束---------------
+
+        //绘制按钮点击事件
+        function DoGraph() {
+            var verticesInput = document.getElementById("vertices");
+            var adjMatrixInput = document.getElementById("adjMatrix");
+            var vertices = verticesInput.value.trim();
+            var adjMatrix = adjMatrixInput.value.trim();
+
+            //检查输入是否为空
+            if (adjMatrix === "") {
+                alert("请输入邻接矩阵！");
+                return;
+            }
+            if (vertices === "") {
+                vertices = "auto";
+            }
+            //解析邻接矩阵
+            var matrixRows = adjMatrix.split("\n"); //使用换行符分割每行
+            var option = {
+                name: [],
+                data: [],
+                drawArrows: drawArrowsChecked,
+                drawLabels: drawLabelsChecked,
+                hideSomeLabel: hideWeightLabelChecked,
+                hideLabelValue: hideWeightValue
+            };
+            for (var i = 0; i < matrixRows.length; i++) {
+                var row = matrixRows[i].split(" "); //使用空格分割每列
+                var rowData = [];
+                for (var j = 0; j < row.length; j++) {
+                    rowData.push(parseInt(row[j]));
+                }
+                option.data.push(rowData);
+            }
+            //解析顶点列表
+            var vertexList = vertices.split(" ");
+            if (vertexList[0] === "auto") {
+                //自动生成顶点编号
+                option.name = [];
+                for (var i = 0; i < matrixRows.length; i++) {
+                    option.name.push(i + 1);
+                }
+            } else {
+                //使用指定的顶点名称
+                option.name = vertexList;
+            }
+
+            //清空画布并重新绘制图形
+            var canvas = document.getElementById('gra');
+            canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+            //如果有旧的对象就销毁
+            if (gra) {
+                if (gra.canvasHandler) {
+                    canvas.removeEventListener(gra.canvasEvent, gra.canvasHandler);
+                }
+                gra = null;
+            }
+            gra = new Gra(canvas, option);
+        }
+
+        //---------------导入导出---------------
+
+        //导出函数，将画板状态保存为文本，返回json文本
+        function exportGraph() {
+            var verticesInput = document.getElementById("vertices");
+            var adjMatrixInput = document.getElementById("adjMatrix");
+            var canvas = document.getElementById('gra');
+
+            //获取画板宽高
+            var canvasWidth = canvas.width;
+            var canvasHeight = canvas.height;
+
+            //获取顶点列表和邻接矩阵
+            var vertices = verticesInput.value.trim();
+            var adjMatrix = adjMatrixInput.value.trim();
+
+            //获取顶点坐标
+            var pointData = null;
+            if (gra) {
+                pointData = gra.pointData;
+            }
+
+            //构建保存的对象
+            var saveData = {
+                vertices: vertices,
+                adjMatrix: adjMatrix,
+                pointData: pointData,
+                canvasWidth: canvasWidth,
+                canvasHeight: canvasHeight,
+                drawArrowsChecked: drawArrowsChecked,
+                drawLabelsChecked: drawLabelsChecked,
+                hideWeightLabelChecked: hideWeightLabelChecked,
+                hideWeightValue: hideWeightValue
+            };
+
+            //将保存的对象转换为字符串
+            return JSON.stringify(saveData);
+        }
+
+        //文件导出函数
+        function fileExportGraph() {
+            //需要导出的字符串
+            var saveText = exportGraph();
+
+            //创建一个下载链接，将保存的文本内容作为文件下载
+            var downloadLink = document.createElement("a");
+            downloadLink.href = "data:text/plain;charset=utf-8," + encodeURIComponent(saveText);
+            downloadLink.download = "graph_state.txt";
+            downloadLink.style.display = "none";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        //剪切板导出函数
+        function clipboardExportGraph() {
+            //需要导出的字符串
+            var saveText = exportGraph();
+            navigator.clipboard.writeText(saveText)
+                .then(() => {
+                    alert("成功导出到剪切板");
+                })
+                .catch((error) => {
+                    alert("导出失败\n" + error);
+                });
+        }
+
+        //导入函数，解析并重绘保存的画板状态
+        function importGraph(jsonstr) {
+            var saveData = JSON.parse(jsonstr);
+
+            var canvas = document.getElementById('gra');
+
+            //设置画板宽高
+            canvas.width = saveData.canvasWidth;
+            canvas.height = saveData.canvasHeight;
+            //设置编辑框
+            document.getElementById('canvasWidth').value = canvas.width;
+            document.getElementById('canvasHeight').value = canvas.height;
+
+            //设置顶点列表和邻接矩阵
+            document.getElementById("vertices").value = saveData.vertices;
+            document.getElementById("adjMatrix").value = saveData.adjMatrix;
+
+            //设置绘图配置
+            drawArrowsChecked = saveData.drawArrowsChecked;
+            drawLabelsChecked = saveData.drawLabelsChecked;
+            hideWeightLabelChecked = saveData.hideWeightLabelChecked;
+            hideWeightValue = saveData.hideWeightValue;
+            document.getElementById("drawArrows").checked = drawArrowsChecked;
+            document.getElementById("drawLabels").checked = drawLabelsChecked;
+            document.getElementById("hideWeightLabel").checked = hideWeightLabelChecked;
+            document.getElementById("hideWeightInput").value = hideWeightValue;
+
+            //应用绘图配置
+            toggleElementsVisibility();
+
+            if (saveData.adjMatrix === "") {
+                //如果有旧的对象就销毁
+                if (gra) {
+                    if (gra.canvasHandler) {
+                        canvas.removeEventListener(gra.canvasEvent, gra.canvasHandler);
+                    }
+                    gra = null;
+                }
+                //清空画布
+                var canvas = document.getElementById('gra');
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            //创建新对象
+            DoGraph();
+
+            //清空画布
+            var canvas = document.getElementById('gra');
+            canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+            //设置顶点坐标
+            if (saveData.pointData) {
+                gra.pointData = saveData.pointData;
+            }
+
+            //重画
+            gra.drawPoint();
+            gra.drawEdge();
+            gra.initaction();
+        }
+
+        //文件导入函数
+        function fileImportGraph() {
+            var file = document.getElementById('importFile').files[0];
+            if (file) {
+                var reader = new FileReader();
+
+                reader.onload = function (e) {
+                    var contents = e.target.result;
+                    importGraph(contents);
+                };
+                reader.readAsText(file);
+                document.getElementById('importFile').value = '';
+            }
+        }
+
+        //处理文本导入的输入和调用
+        function handleImport() {
+            var input = prompt("请输入文本内容：");
+            if (input !== null) {
+                importGraph(input);
+            }
+        }
+        //---------------导入导出结束---------------
+
+        //应用画板大小
+        function applyCanvasSize() {
+            var widthInput = document.getElementById('canvasWidth');
+            var heightInput = document.getElementById('canvasHeight');
+            var canvas = document.getElementById('gra');
+
+            canvas.width = widthInput.value;
+            canvas.height = heightInput.value;
+
+            //清空画布
+            canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+            if (gra) {
+                //绘图类设置大小
+                gra.width = canvas.width;
+                gra.height = canvas.height;
+                //重画
+                gra.drawPoint();
+                gra.drawEdge();
+                gra.initaction();
+            }
+        }
+
+        //空的全局绘图对象
+        var gra = null;
+
+        //选择框状态全局变量
+        var drawArrowsChecked = true;
+        var drawLabelsChecked = true;
+        var hideWeightLabelChecked = false;
+        var hideWeightValue = 1;
+
+        //监听选择框变动
+        document.getElementById("drawArrows").addEventListener("change", function () {
+            drawArrowsChecked = this.checked;
+            toggleElementsVisibility();
+            applyDrawConfig();
+        });
+
+        document.getElementById("drawLabels").addEventListener("change", function () {
+            drawLabelsChecked = this.checked;
+            toggleElementsVisibility();
+            applyDrawConfig();
+        });
+
+        document.getElementById("hideWeightLabel").addEventListener("change", function () {
+            hideWeightLabelChecked = this.checked;
+            toggleElementsVisibility();
+            applyDrawConfig();
+        });
+
+        //监听输入框变动
+        document.getElementById("hideWeightInput").addEventListener("input", function () {
+            hideWeightValue = this.value;
+            if (!hideWeightLabelChecked) {
+                return; //如果未勾选隐藏权重标签，则不应用输入框变动
+            }
+            applyDrawConfig();
+        });
+
+        //控制相关元素的显示和隐藏
+        function toggleElementsVisibility() {
+            var drawLabelsSwitch = document.getElementById("drawLabelsSwitch");
+            var hideWeightLabelSwitch = document.getElementById("hideWeightLabelSwitch");
+            if (drawArrowsChecked) {
+                drawLabelsSwitch.style.display = drawArrowsChecked ? "flex" : "none";
+                hideWeightLabelSwitch.style.display = drawLabelsChecked ? "flex" : "none";
+            } else {
+                drawLabelsSwitch.style.display = "none";
+                hideWeightLabelSwitch.style.display = "none";
+            }
+        }
+
+        //应用绘图配置更改
+        function applyDrawConfig() {
+            if (gra) {
+                var canvas = document.getElementById('gra');
+                //清空画布
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                //修改绘图类设置
+                gra.drawArrows = drawArrowsChecked;
+                gra.drawLabels = drawLabelsChecked;
+                gra.hideSomeLabel = hideWeightLabelChecked;
+                gra.hideLabelValue = hideWeightValue;
+                //重画
+                gra.drawPoint();
+                gra.drawEdge();
+                gra.initaction();
+            }
+        }
+
+        //初始化画板大小
+        window.addEventListener('load', function () {
+            //在页面加载完成后执行以下代码
+
+            //获取div.container的宽度
+            var container = document.querySelector('.container');
+            var containerWidth = container.offsetWidth - 48;
+            if (containerWidth < 500) {
+                //保留至少500的空间，多的部分利用div的滑动布局显示
+                document.getElementById('canvasWidth').value = '500';
+                document.getElementById('canvasHeight').value = '500';
+                return;
+            }
+            //将canvas的宽度设置为div.container的宽度
+            var canvas = document.getElementById('gra');
+            canvas.width = containerWidth;
+
+            //设置编辑框
+            document.getElementById('canvasWidth').value = containerWidth;
+            document.getElementById('canvasHeight').value = '500';
+        });
+    </script>
+</body>
+
+</html>
