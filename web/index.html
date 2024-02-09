@@ -337,7 +337,11 @@
                                 }
                                 continue;
                             }
-                            //比例
+                            //计算两边直线的位置
+                            if (mydata[j].x == mydata[i].x) {
+                                //如果是垂直，那么为其中一个点添加微小偏移量
+                                mydata[i].x += 0.001;
+                            }
                             var rat = Math.atan((mydata[j].y - mydata[i].y) / (mydata[j].x - mydata[i].x));
                             var dex = Math.cos(rat + (Math.PI / 6)) * this.pointSize;
                             var dey = Math.sin(rat + (Math.PI / 6)) * this.pointSize;
@@ -399,9 +403,9 @@
 
             //绘制箭头
             ctx.beginPath();
-            ctx.moveTo(-12, 0);
-            ctx.lineTo(-2, 5);
-            ctx.lineTo(-2, -5);
+            ctx.moveTo(12, 0);
+            ctx.lineTo(2, 5);
+            ctx.lineTo(2, -5);
             ctx.closePath();
             ctx.fill();
 
