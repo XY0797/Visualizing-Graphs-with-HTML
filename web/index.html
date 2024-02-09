@@ -48,6 +48,7 @@
         .switch {
             display: flex;
             align-items: center;
+            margin-bottom: 10px;
             margin-right: 10px;
         }
 
@@ -661,13 +662,17 @@
         function clipboardExportGraph() {
             //需要导出的字符串
             var saveText = exportGraph();
-            navigator.clipboard.writeText(saveText)
-                .then(() => {
-                    alert("成功导出到剪切板");
-                })
-                .catch((error) => {
-                    alert("导出失败\n" + error);
-                });
+            const el = document.createElement('textarea');
+            el.value = saveText;
+            document.body.appendChild(el);
+            el.select();
+            try {
+                document.execCommand('copy');
+                alert("已成功导出到剪切板");
+            } catch (err) {
+                alert("复制失败：" + err);
+            }
+            document.body.removeChild(el);
         }
 
         //导入函数，解析并重绘保存的画板状态
