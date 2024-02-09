@@ -175,6 +175,13 @@
                 </label>
                 <div class="switch-text">绘制箭头</div>
             </div>
+            <div class="switch" id="drawUndirectArrowsSwitch">
+                <label class="switch-label" for="drawUndirectArrows">
+                    <input type="checkbox" id="drawUndirectArrows" checked />
+                    <span class="switch-slider"></span>
+                </label>
+                <div class="switch-text">绘制无向边箭头</div>
+            </div>
             <div class="switch" id="drawLabelsSwitch">
                 <label class="switch-label" for="drawLabels">
                     <input type="checkbox" id="drawLabels" checked />
@@ -226,8 +233,7 @@
             this.width = this.elem.width;
             this.height = this.elem.height;
             this.context = this.elem.getContext('2d');
-            this.deName = false;
-            this.isSymmetric = true;
+            this.graphType = null;
             this.pointSize = 15;
             this.pointData = [];
             this.canvasEvent = null;
@@ -236,6 +242,7 @@
             this.drawLabels = true;
             this.hideSomeLabel = false;
             this.hideLabelValue = 1;
+            this.drawUndirectArrows = true;
             this.init();
         }
 
@@ -247,13 +254,62 @@
             this.drawLabels = this.options.drawLabels;
             this.hideSomeLabel = this.options.hideSomeLabel;
             this.hideLabelValue = this.options.hideLabelValue;
-            if (name && name.length != 0) {
-                this.deName = true;
-            }
+            this.drawUndirectArrows = this.options.drawUndirectArrows;
+            this.getGraphType();
             this.createPoint();
             this.drawPoint();
             this.drawEdge();
             this.initaction();
+        }
+
+        Gra.prototype.getGraphType = function () {
+            var data = this.options.data;
+            var graphType = {
+                isDirected: false, //是否为有向图
+                hasCycle: false, //是否含有环
+                isConnected: true //是否为连通图
+            };
+
+            var n = data.length; //图中顶点的数量
+
+            //检查图是否对称，以确定是否为有向图或无向图
+            for (var i = 0; i < n; i++) {
+                for (var j = 0; j < n; j++) {
+                    if (data[i][j] !== data[j][i]) {
+                        //有不对称的部分，说明是有向的
+                        graphType.isDirected = true;
+                        break;
+                    }
+                }
+            }
+
+            //深度优先搜索，用于检测环和连通性
+            var visited = new Array(n).fill(false);
+
+            function getGraphType_dfs(node, parent) {
+                visited[node] = true;
+
+                for (var i = 0; i < n; i++) {
+                    if (data[node][i] !== 0) {
+                        if (!visited[i]) {
+                            getGraphType_dfs(i, node);
+                        } else if (i !== parent) {
+                            graphType.hasCycle = true;
+                        }
+                    }
+                }
+            }
+
+            getGraphType_dfs(0, -1);
+
+            //检查图是否连通
+            for (var i = 0; i < n; i++) {
+                if (!visited[i]) {
+                    graphType.isConnected = false;
+                    break;
+                }
+            }
+            this.graphType = graphType;
         }
 
         //创建顶点
@@ -287,61 +343,78 @@
 
         //绘边
         Gra.prototype.drawEdge = function () {
-            //判断是无向图和有向图
             var gra = this;
             var ctx = this.context;
             var data = this.options.data;
             var mydata = this.pointData;
-            for (var i = 0; i < data.length; i++) {
-                for (j = 0; j < data.length; j++) {
-                    if (data[i][j] != data[j][i]) {
-                        this.isSymmetric = false;
-                    }
-                }
-            }
+            var gType = this.graphType;
+
             ctx.save();
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 1;
             ctx.font = '12px 微软雅黑';
             ctx.textAlign = 'left';
-            if (this.isSymmetric) {
-                ctx.fillText('无向图', 14, 14);
-                for (var i = 0; i < data.length; i++) {
-                    for (j = 0; j < i; j++) {
-                        if (data[i][j] != 0 && data[i][j] != Number.POSITIVE_INFINITY) {
+
+            var titlestr = '';
+            if (gType.isDirected) {
+                titlestr += '有向';
+            } else {
+                titlestr += '无向';
+            }
+            if (gType.hasCycle) {
+                titlestr += '有环';
+            } else {
+                titlestr += '无环';
+            }
+            if (gType.isConnected) {
+                titlestr += '连通图';
+            } else {
+                titlestr += '非连通图';
+            }
+
+            //绘制标题
+            ctx.fillText(titlestr, 14, 14);
+            for (var i = 0; i < data.length; i++) {
+                for (j = 0; j < data.length; j++) {
+                    //绘制连通的边
+                    if (data[i][j] != 0 && i != j) {
+                        //判断边的类型
+                        if (data[i][j] == data[j][i]) {
+                            //无向边
+                            if (j < i) {
+                                //只画一次
+                                continue;
+                            }
                             ctx.moveTo(mydata[i].x, mydata[i].y);
                             ctx.lineTo(mydata[j].x, mydata[j].y);
                             ctx.stroke();
                             //双向箭头
-                            if (this.drawArrows) {
+                            if (this.drawArrows && this.drawUndirectArrows) {
                                 this.drawDoubleArrow(mydata[i].x, mydata[i].y, mydata[j].x, mydata[j].y, data[i][j]);
+                            } else {
+                                //只画标签
+                                this.drawLabel(mydata[i].x, mydata[i].y, mydata[j].x, mydata[j].y, data[i][j], 0);
                             }
-                        }
-                    }
-                }
-            }
-            else {
-                ctx.fillText('有向图', 14, 14);
-                for (var i = 0; i < data.length; i++) {
-                    for (j = 0; j < data.length; j++) {
-                        if (data[i][j] != 0 && data[i][j] != Number.POSITIVE_INFINITY && i != j) {
-                            if (data[i][j] == data[j][i]) {
-                                //无向边
-                                if (j < i) { continue; }
-                                ctx.moveTo(mydata[i].x, mydata[i].y);
-                                ctx.lineTo(mydata[j].x, mydata[j].y);
-                                ctx.stroke();
-                                //双向箭头
-                                if (this.drawArrows) {
-                                    this.drawDoubleArrow(mydata[i].x, mydata[i].y, mydata[j].x, mydata[j].y, data[i][j]);
-                                }
-                                continue;
+                            continue;
+                        } else if (data[j][i] == 0) {
+                            //单向边
+                            ctx.moveTo(mydata[i].x, mydata[i].y);
+                            ctx.lineTo(mydata[j].x, mydata[j].y);
+                            ctx.stroke();
+                            //单向箭头
+                            if (this.drawArrows) {
+                                this.drawArrow(mydata[i].x, mydata[i].y, mydata[j].x, mydata[j].y, data[i][j]);
+                            } else {
+                                //只画标签
+                                this.drawLabel(mydata[i].x, mydata[i].y, mydata[j].x, mydata[j].y, data[i][j], 0);
                             }
-                            //计算两边直线的位置
+                        } else {
+                            //双向边
                             if (mydata[j].x == mydata[i].x) {
                                 //如果是垂直，那么为其中一个点添加微小偏移量
                                 mydata[i].x += 0.001;
                             }
+                            //计算两边直线的位置
                             var rat = Math.atan((mydata[j].y - mydata[i].y) / (mydata[j].x - mydata[i].x));
                             var dex = Math.cos(rat + (Math.PI / 6)) * this.pointSize;
                             var dey = Math.sin(rat + (Math.PI / 6)) * this.pointSize;
@@ -355,22 +428,27 @@
                                 //箭头
                                 if (this.drawArrows) {
                                     this.drawArrow(mydata[i].x + dex1, mydata[i].y + dey1, mydata[j].x - dex, mydata[j].y - dey, data[i][j]);
+                                } else {
+                                    //只画标签
+                                    this.drawLabel(mydata[i].x + dex1, mydata[i].y + dey1, mydata[j].x - dex, mydata[j].y - dey, data[i][j], 12);
                                 }
                             }
                             else {
-                                ctx.strokeStyle = '#800000 ';
+                                ctx.strokeStyle = '#800000';
                                 ctx.moveTo(mydata[i].x - dex1, mydata[i].y - dey1);
                                 ctx.lineTo(mydata[j].x + dex, mydata[j].y + dey);
                                 ctx.stroke();
                                 //箭头
                                 if (this.drawArrows) {
                                     this.drawArrow(mydata[i].x - dex1, mydata[i].y - dey1, mydata[j].x + dex, mydata[j].y + dey, data[i][j]);
+                                } else {
+                                    //只画标签
+                                    this.drawLabel(mydata[i].x - dex1, mydata[i].y - dey1, mydata[j].x + dex, mydata[j].y + dey, data[i][j], 12);
                                 }
                             }
                         }
                     }
                 }
-
             }
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -381,18 +459,13 @@
                 ctx.closePath();
                 ctx.fill();
                 ctx.fillStyle = '#000';
-                if (gra.deName) {
-                    ctx.fillText(gra.options.name[index], item.x, item.y);
-                }
-                else {
-                    ctx.fillText(index.toString(), item.x, item.y);
-                }
+                ctx.fillText(gra.options.name[index], item.x, item.y);
             });
 
             ctx.restore();
         }
 
-        //绘制箭头及标签
+        //绘制箭头(含标签)
         Gra.prototype.drawArrow = function (x, y, x1, y1, weight) {
             var ctx = this.context;
             ctx.save();
@@ -408,39 +481,49 @@
             ctx.lineTo(2, -5);
             ctx.closePath();
             ctx.fill();
+            ctx.restore();
 
-            //有权重并且开启了画权重并且没有隐藏当前权重的标签
+            //绘制标签
+            this.drawLabel(x, y, x1, y1, weight, 25);
+        }
+
+        //绘制标签
+        Gra.prototype.drawLabel = function (x, y, x1, y1, weight, labelOffset) {
+            //权重存在，并且开启了画标签，并且当前权重的标签不被隐藏
             if (weight && this.drawLabels && (!this.hideSomeLabel || this.hideLabelValue != weight)) {
-                //逆向旋转标签，使其保持水平方向
-                ctx.rotate(-angle);
+                var ctx = this.context;
+                ctx.save();
+                ctx.translate(x / 2 + x1 / 2, y / 2 + y1 / 2);
+                var angle = Math.atan2(y1 - y, x1 - x); //计算箭头的旋转角度
 
                 //根据箭头的旋转角度调整标签的位置
-                var labelOffset = 25; //标签的偏移量
                 var labelX = Math.cos(angle) * labelOffset;
                 var labelY = Math.sin(angle) * labelOffset;
 
                 //绘制标签背景
-                var labelBgColor = '#fff'; //标签背景颜色
-                var labelBorderColor = '#888'; //标签边框颜色
                 var labelWidth = ctx.measureText(weight).width + 10; //标签宽度
                 var labelHeight = 20; //标签高度
 
-                ctx.fillStyle = labelBgColor;
-                ctx.fillRect(labelX - labelWidth / 2, labelY - labelHeight / 2, labelWidth, labelHeight);
+                //开始新路径
+                ctx.beginPath();
 
-                ctx.strokeStyle = labelBorderColor;
+                //绘制标签边框
+                ctx.strokeStyle = '#888';//灰色
                 ctx.lineWidth = 1;
                 ctx.strokeRect(labelX - labelWidth / 2, labelY - labelHeight / 2, labelWidth, labelHeight);
 
-                //绘制标签
+                //绘制标签背景
+                ctx.fillStyle = '#fff';//白色
+                ctx.fillRect(labelX - labelWidth / 2, labelY - labelHeight / 2, labelWidth, labelHeight);
+
+                //绘制标签内容
                 ctx.font = '12px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = '#000';
                 ctx.fillText(weight, labelX, labelY);
+                ctx.restore();
             }
-
-            ctx.restore();
         }
 
         // 绘制双向箭头及标签
@@ -572,10 +655,15 @@
                 drawArrows: drawArrowsChecked,
                 drawLabels: drawLabelsChecked,
                 hideSomeLabel: hideWeightLabelChecked,
-                hideLabelValue: hideWeightValue
+                hideLabelValue: hideWeightValue,
+                drawUndirectArrows: drawUndirectArrowsChecked
             };
             for (var i = 0; i < matrixRows.length; i++) {
                 var row = matrixRows[i].split(" "); //使用空格分割每列
+                if (matrixRows.length != row.length) {
+                    alert("行的数量不等于列的数量，请输入正确的邻接矩阵！\r\n原因：第" + (i + 1) + "行有" + row.length + "列，但是总共却有" + matrixRows.length + "行");
+                    return;
+                }
                 var rowData = [];
                 for (var j = 0; j < row.length; j++) {
                     rowData.push(parseInt(row[j]));
@@ -640,7 +728,8 @@
                 drawArrowsChecked: drawArrowsChecked,
                 drawLabelsChecked: drawLabelsChecked,
                 hideWeightLabelChecked: hideWeightLabelChecked,
-                hideWeightValue: hideWeightValue
+                hideWeightValue: hideWeightValue,
+                drawUndirectArrowsChecked: drawUndirectArrowsChecked
             };
 
             //将保存的对象转换为字符串
@@ -701,16 +790,18 @@
             drawLabelsChecked = saveData.drawLabelsChecked;
             hideWeightLabelChecked = saveData.hideWeightLabelChecked;
             hideWeightValue = saveData.hideWeightValue;
+            drawUndirectArrowsChecked = saveData.drawUndirectArrowsChecked;
             document.getElementById("drawArrows").checked = drawArrowsChecked;
             document.getElementById("drawLabels").checked = drawLabelsChecked;
             document.getElementById("hideWeightLabel").checked = hideWeightLabelChecked;
             document.getElementById("hideWeightInput").value = hideWeightValue;
+            document.getElementById("drawUndirectArrows").checked = drawUndirectArrowsChecked;
 
-            //应用绘图配置
+            //刷新绘制配置的UI显示
             toggleElementsVisibility();
 
             if (saveData.adjMatrix === "") {
-                //如果有旧的对象就销毁
+                //无矩阵数据说明不需要绘图，如果有旧的对象就销毁
                 if (gra) {
                     if (gra.canvasHandler) {
                         canvas.removeEventListener(gra.canvasEvent, gra.canvasHandler);
@@ -796,6 +887,7 @@
         var drawLabelsChecked = true;
         var hideWeightLabelChecked = false;
         var hideWeightValue = 1;
+        var drawUndirectArrowsChecked = true;
 
         //监听选择框变动
         document.getElementById("drawArrows").addEventListener("change", function () {
@@ -825,17 +917,19 @@
             applyDrawConfig();
         });
 
+        //监听选择框变动
+        document.getElementById("drawUndirectArrows").addEventListener("change", function () {
+            drawUndirectArrowsChecked = this.checked;
+            toggleElementsVisibility();
+            applyDrawConfig();
+        });
+
         //控制相关元素的显示和隐藏
         function toggleElementsVisibility() {
-            var drawLabelsSwitch = document.getElementById("drawLabelsSwitch");
             var hideWeightLabelSwitch = document.getElementById("hideWeightLabelSwitch");
-            if (drawArrowsChecked) {
-                drawLabelsSwitch.style.display = drawArrowsChecked ? "flex" : "none";
-                hideWeightLabelSwitch.style.display = drawLabelsChecked ? "flex" : "none";
-            } else {
-                drawLabelsSwitch.style.display = "none";
-                hideWeightLabelSwitch.style.display = "none";
-            }
+            var drawUndirectArrowsSwitch = document.getElementById("drawUndirectArrowsSwitch");
+            drawUndirectArrowsSwitch.style.display = drawArrowsChecked ? "flex" : "none";
+            hideWeightLabelSwitch.style.display = drawLabelsChecked ? "flex" : "none";
         }
 
         //应用绘图配置更改
@@ -849,6 +943,7 @@
                 gra.drawLabels = drawLabelsChecked;
                 gra.hideSomeLabel = hideWeightLabelChecked;
                 gra.hideLabelValue = hideWeightValue;
+                gra.drawUndirectArrows = drawUndirectArrowsChecked;
                 //重画
                 gra.drawPoint();
                 gra.drawEdge();
