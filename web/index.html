@@ -283,32 +283,56 @@
                 }
             }
 
-            //深度优先搜索，用于检测环和连通性
-            var visited = new Array(n).fill(false);
-
-            function getGraphType_dfs(node, parent) {
-                visited[node] = true;
-
-                for (var i = 0; i < n; i++) {
-                    if (data[node][i] !== 0) {
-                        if (!visited[i]) {
-                            getGraphType_dfs(i, node);
-                        } else if (i !== parent) {
-                            graphType.hasCycle = true;
+            //检查图是否连通
+            for (var i = 0; i < n; i++) {
+                var isallzero = true;
+                for (var j = 0; j < n; j++) {
+                    if (data[i][j] !== 0) {
+                        isallzero = false;
+                        break;
+                    }
+                }
+                if (isallzero) {
+                    //说明节点i的出度为0，判断i的入度
+                    for (var j = 0; j < n; j++) {
+                        if (j == i) { continue; }
+                        if (data[j][i] !== 0) {
+                            isallzero = false;
+                            break;
                         }
+                    }
+                    if (isallzero) {
+                        //说明节点i的入度也为0，图为非连通图
+                        graphType.isConnected = false;
+                        break;
                     }
                 }
             }
 
-            getGraphType_dfs(0, -1);
+            //深度优先搜索，用于检测环
+            var visited;
 
-            //检查图是否连通
-            for (var i = 0; i < n; i++) {
-                if (!visited[i]) {
-                    graphType.isConnected = false;
-                    break;
+            function getGraphType_dfs(node, parent) {
+                visited[node] = true;
+                for (var i = 0; i < n; i++) {
+                    if (data[node][i] !== 0) {
+                        if (!visited[i]) {
+                            getGraphType_dfs(i, node);
+                        } else if (i != parent) {
+                            graphType.hasCycle = true;
+                            return;
+                        }
+                    }
                 }
+                visited[node] = false;
             }
+
+            for (var i = 0; i < n; i++) {
+                visited = new Array(n).fill(false);
+                getGraphType_dfs(i, -1);
+                if (graphType.hasCycle) { break; }
+            }
+
             this.graphType = graphType;
         }
 
@@ -385,6 +409,7 @@
                                 //只画一次
                                 continue;
                             }
+                            ctx.strokeStyle = '#000';
                             ctx.moveTo(mydata[i].x, mydata[i].y);
                             ctx.lineTo(mydata[j].x, mydata[j].y);
                             ctx.stroke();
@@ -398,6 +423,7 @@
                             continue;
                         } else if (data[j][i] == 0) {
                             //单向边
+                            ctx.strokeStyle = '#000';
                             ctx.moveTo(mydata[i].x, mydata[i].y);
                             ctx.lineTo(mydata[j].x, mydata[j].y);
                             ctx.stroke();
